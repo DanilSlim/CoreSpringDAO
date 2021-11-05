@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util" 
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-3.0.xsd
+        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd
+        http://www.springframework.org/schema/tx https://www.springframework.org/schema/tx/spring-tx.xsd
+        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+ 
+ 
+ <context:component-scan base-package="com.habuma.spitter.persistence"/>
+ 
+ <!-- Добавляет поддержку транзакций (без нее не работают запросы к БД) -->
+ <tx:annotation-driven/>
+ 
+ 
+ 
+        
+<!-- Обявление pooling DataSource dbcp для PostgreSQL  -->  
+  <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
+    <property name="driverClassName" value="org.postgresql.Driver" />
+  	<property name="url" value="jdbc:postgresql://localhost/test" />
+  	<property name="username" value="test" />
+  	<property name="password" value="test" />
+  	<property name="initialSize" value="5"/>
+    <!--  <property name="maxActive" value="10"/>-->
+ </bean>
+
+ <!--  Полученный ранее DataSource передается в класс шаблона -->
+ <bean id="jdbcTemplate"	class="org.springframework.jdbc.core.JdbcTemplate">
+     <constructor-arg name="dataSource" ref="dataSource"/>
+ </bean>
+ 
+ <bean id="spitterDao" class="com.habuma.spitter.persistence.SimpleJdbcTemplateSpitterDao">
+	<property name="jdbcTemplate" ref="jdbcTemplate"/>
+</bean>
+
+
+<!-- Подключение Hibernate -->
+<bean id="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
+
+	<property name="dataSource" ref="dataSource"/>
+	<property name="packagesToScan" value="com.habuma.spitter.domain"/>
+	<property name="hibernateProperties">
+		<props>
+		  <prop key="dialect">org.hibernate.dialect.PostgreSQL9Dialect</prop>
+        </props>
+    </property>
+	
+</bean>
+
+<!-- Proxy bean отвечающий за обработку транзакций указывается в @Transactional -->
+<bean id="txManager" class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+    <property name="sessionFactory" ref="sessionFactory"/>
+</bean>
+
+<bean id="txJPAManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+    <property name="entityManagerFactory" ref="emf"></property>
+</bean>
+
+<!--  Бин для трансляции исключений в бинах помеченных @Repository -->
+<bean class="org.springframework.dao.annotation.PersistenceExceptionTranslationPostProcessor"/>
+
+<!-- EntityManager управляемый приложением - настройки в persistence.xml -->
+<bean id="emfLocal" class="org.springframework.orm.jpa.LocalEntityManagerFactoryBean">
+    <property name="persistenceUnitName" value="spitterPU"/>
+</bean>
+
+<!-- EntityManager управляемый контейнером - настройки в файле контекста Spring -->
+<bean id="emf" class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean">
+    <property name="dataSource" ref="dataSource"/>
+    <property name="jpaVendorAdapter" ref="jpaAdapter"/>
+    <property name="packagesToScan" value="com.habuma.spitter.domain"/><!-- Без этого не работает -->
+                   
+</bean>
+
+<bean id="jpaAdapter" class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter">
+	<property name="database" value="POSTGRESQL" />
+	<property name="showSql" value="true"/>
+	<property name="generateDdl" value="false"/>
+	<property name="databasePlatform" value="org.hibernate.dialect.PostgreSQL9Dialect" />
+</bean>
+
+<bean class="org.springframework.orm.jpa.support.PersistenceAnnotationBeanPostProcessor"/>
+  
+</beans>
